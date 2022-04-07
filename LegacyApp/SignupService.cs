@@ -1,89 +1,67 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace LegacyApp
 {
     public class SignupService
     {
-        public SignupServiceResult AddUser(string firname, string surname, string email, string phone,
+        private const string EmailText = "Welcome to e-Boks";
+        private const string SmsText = "Welcome to e-Boks";
+
+        public SignupServiceResult AddUser(string firstname, string surname, string email, string phone,
             DateTime dateOfBirth, int clientId, string notifications)
         {
-            if (string.IsNullOrEmpty(firname) || string.IsNullOrEmpty(surname))
-                return new SignupServiceResult
-                {
-                    IsSuccess = false,
-                    Notifications = null
-                };
-
-            if (string.IsNullOrEmpty(phone))
-                return new SignupServiceResult
-                {
-                    IsSuccess = false,
-                    Notifications = null
-                };
-
-            if (!email.Contains("@") && !email.Contains("."))
-                return new SignupServiceResult
-                {
-                    IsSuccess = false,
-                    Notifications = null
-                };
-
-            var now = DateTime.Now;
-            var age = now.Year - dateOfBirth.Year;
-            if (now.Month < dateOfBirth.Month || now.Month == dateOfBirth.Month && now.Day < dateOfBirth.Day) age--;
-
-            if (age < 18)
-                return new SignupServiceResult
-                {
-                    IsSuccess = false,
-                    Notifications = null
-                };
-
-            var listOfnotifications = notifications.Split("|").Where(x => !string.IsNullOrWhiteSpace(x)).ToList(); ;
-            ;
+            var errorResponse = new SignupServiceResult
+            {
+                IsSuccess = false,
+                Notifications = null
+            };
 
             var user = new User
             {
                 Id = clientId,
                 DateOfBirth = dateOfBirth,
                 EmailAddress = email,
-                Firstname = firname,
+                Firstname = firstname,
                 Surname = surname,
-                Notifications = notifications
+                Notifications = notifications,
+                Phone = phone
             };
 
-            var result = new Dictionary<string, bool>();
-            if (listOfnotifications.Contains("Sms"))
+            if (!IsValid(user))
+                return errorResponse;
+
+            var listOfNotifications = notifications.Split("|").Where(x => !string.IsNullOrWhiteSpace(x)).Select(Enum.Parse<NotificationType>).ToList();
+
+            if (listOfNotifications.Contains(NotificationType.BottleMail))
             {
-                // allowed to send Sms
-                var smsService = new SmsService();
-                if (smsService.Send("Welcome to e-Boks"))
-                    result.Add("Sms", true);
+                return errorResponse;
             }
 
-            if (listOfnotifications.Contains("Email"))
-                // allowed to send Email
-                if (EmailService.Send("Welcome to e-Boks"))
-                    result.Add("Email", true);
-
-            if (result.ContainsKey("Sms")
-                && result.ContainsKey("Email") && result.Count() == 2 ||
-                result.ContainsKey("Sms") ||
-                result.ContainsKey("Email") && result.Count() == 1
-            )
+            try
             {
                 UserDataAccess.AddUser(user);
-                return new SignupServiceResult
-                {
-                    IsSuccess = true,
-                    Notifications = result
-                };
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                return errorResponse;
             }
 
-            throw new NotImplementedException("Service not found!");
+            var result = listOfNotifications.ToDictionary(notification => ((NotificationType) notification).ToString(), notification => notification != NotificationType.BottleMail);
+
+            if (result.Any(x => x.Key == NotificationType.Sms.ToString()))
             {
+                var smsService = new SmsService();
+                smsService.Send(SmsText);
+            }
+
+            if (result.Any(x => x.Key == NotificationType.Email.ToString()))
+            {
+                EmailService.Send(EmailText);
             }
 
             return new SignupServiceResult
@@ -91,7 +69,36 @@ namespace LegacyApp
                 IsSuccess = true,
                 Notifications = result
             };
-            ;
+            
+        }
+
+        private bool IsValid(User user)
+        {
+            if (string.IsNullOrEmpty(user.Firstname))
+                return false;
+
+            if (string.IsNullOrEmpty(user.Surname))
+                return false;
+
+            return !string.IsNullOrEmpty(user.Phone) && IsEmailValid(user.EmailAddress) && IsDateOfBirthValid(user.DateOfBirth);
+        }
+
+        bool IsEmailValid(string email)
+        {
+            try
+            {
+                return new System.Net.Mail.MailAddress(email).Address == email.Trim();
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        bool IsDateOfBirthValid(DateTime dateOfBirth)
+        {
+            var difference = DateTime.Now.Subtract(dateOfBirth);
+            return !(difference.TotalDays / 365.25 < 18);
         }
     }
 }

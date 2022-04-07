@@ -16,5 +16,7 @@ namespace LegacyApp
         public string EmailAddress { get; set; }
 
         public string Notifications { get; set; }
+
+        public string Phone { get; set; }
     }
 }
