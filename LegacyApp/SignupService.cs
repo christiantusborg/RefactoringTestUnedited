@@ -59,13 +59,13 @@ namespace LegacyApp
             {
                 // allowed to send Sms
                 var smsService = new SmsService();
-                if (smsService.Send("Welcome to e-Boks"))
+                if (smsService.Send("Welcome to SignUp"))
                     result.Add("Sms", true);
             }
 
             if (listOfnotifications.Contains("Email"))
                 // allowed to send Email
-                if (EmailService.Send("Welcome to e-Boks"))
+                if (EmailService.Send("Welcome to SignUp"))
                     result.Add("Email", true);
 
             if (result.ContainsKey("Sms")
