@@ -16,7 +16,7 @@ namespace LegacyApp
     {
 
 
-        public bool Send(string message)
+        public static bool Send(string message)
         {
             return true;
         }

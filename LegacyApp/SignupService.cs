@@ -1,97 +1,86 @@
-﻿using System;
+﻿
+using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace LegacyApp
 {
+
     public class SignupService
     {
-        public SignupServiceResult AddUser(string firname, string surname, string email, string phone,
+        public SignupServiceResult AddUser(string firstname, string surname, string email, string phone,
             DateTime dateOfBirth, int clientId, string notifications)
         {
-            if (string.IsNullOrEmpty(firname) || string.IsNullOrEmpty(surname))
-                return new SignupServiceResult
-                {
-                    IsSuccess = false,
-                    Notifications = null
-                };
-
-            if (string.IsNullOrEmpty(phone))
-                return new SignupServiceResult
-                {
-                    IsSuccess = false,
-                    Notifications = null
-                };
-
-            if (!email.Contains("@") && !email.Contains("."))
-                return new SignupServiceResult
-                {
-                    IsSuccess = false,
-                    Notifications = null
-                };
-
-            var now = DateTime.Now;
-            var age = now.Year - dateOfBirth.Year;
-            if (now.Month < dateOfBirth.Month || now.Month == dateOfBirth.Month && now.Day < dateOfBirth.Day) age--;
-
-            if (age < 18)
-                return new SignupServiceResult
-                {
-                    IsSuccess = false,
-                    Notifications = null
-                };
-
-            var listOfnotifications = notifications.Split("|").Where(x => !string.IsNullOrWhiteSpace(x)).ToList(); ;
-            ;
+            var result = new SignupServiceResult { IsSuccess = false, Notifications = new Dictionary<string, bool>() };
+            var notificationTypes = notifications.Split('|');
+            if (string.IsNullOrEmpty(firstname) || string.IsNullOrEmpty(surname))
+                return result;
+            if (!IsUserAdult(dateOfBirth))
+                return result;
+            if (!IsValidEmail(email))
+                return result;
 
             var user = new User
             {
-                Id = clientId,
-                DateOfBirth = dateOfBirth,
-                EmailAddress = email,
-                Firstname = firname,
+                Firstname = firstname,
                 Surname = surname,
-                Notifications = notifications
+                EmailAddress = email,
+                PhoneNumber = phone,
+                DateOfBirth = dateOfBirth,
             };
 
-            var result = new Dictionary<string, bool>();
-            if (listOfnotifications.Contains("Sms"))
-            {
-                // allowed to send Sms
-                var smsService = new SmsService();
-                if (smsService.Send("Welcome to SignUp"))
-                    result.Add("Sms", true);
-            }
-
-            if (listOfnotifications.Contains("Email"))
-                // allowed to send Email
-                if (EmailService.Send("Welcome to SignUp"))
-                    result.Add("Email", true);
-
-            if (result.ContainsKey("Sms")
-                && result.ContainsKey("Email") && result.Count() == 2 ||
-                result.ContainsKey("Sms") ||
-                result.ContainsKey("Email") && result.Count() == 1
-            )
+            try
             {
                 UserDataAccess.AddUser(user);
-                return new SignupServiceResult
+                result.IsSuccess = true;
+                foreach (var notification in notificationTypes)
                 {
-                    IsSuccess = true,
-                    Notifications = result
-                };
-            }
+                    switch (notification.ToLower())
+                    {
+                        case "email":
+                            EmailService.Send(email);
+                            result.Notifications.Add("email", true);
+                            break;
+                        case "sms":
+                            if (string.IsNullOrEmpty(phone)) // Validation: Phone number must be provided for SMS
+                            {
+                                result.Notifications.Add("sms", false);
+                                continue;
+                            }
 
-            throw new NotImplementedException("Service not found!");
-            {
-            }
+                            SmsService.Send(phone);
+                            result.Notifications.Add("sms", true);
+                            break;
+                        case "push":
+                            PushNotificationService
+                                .Send(user.DeviceId); // Assuming a PushNotificationService is implemented
+                            result.Notifications.Add("push", true);
+                            break;
+                        default:
+                            throw new NotImplementedException($"Notification type '{notification}' not supported.");
+                    }
+                }
 
-            return new SignupServiceResult
+                return result;
+            }
+            catch (Exception ex)
             {
-                IsSuccess = true,
-                Notifications = result
-            };
-            ;
+                // Handle exception (logging, etc.)
+                return new SignupServiceResult { IsSuccess = false };
+            }
+        }
+        
+        public static bool IsUserAdult(DateTime dateOfBirth)
+        {
+            var today = DateTime.Today;
+            var age = today.Year - dateOfBirth.Year;
+            if (dateOfBirth.Date > today.AddYears(-age)) age--;
+            return age >= 18;
+        }
+
+        public static bool IsValidEmail(string email)
+        {
+            return Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
         }
     }
 }

@@ -1,0 +1,32 @@
+
+using System;
+using System.Configuration;
+using System.Data;
+using System.Data.SqlClient;
+
+namespace LegacyApp
+{
+    public static class UserDataAccess
+    {
+        public static void AddUser(User user)
+        {
+            if (user == null)
+                throw new ArgumentNullException(nameof(user));
+
+            if (user.Firstname == null || user.Firstname.Length > 50)
+                throw new DataException("Firstname is null or too long");
+
+            if (user.Surname == null || user.Surname.Length > 50)
+                throw new DataException("Surname is null or too long");
+
+            if (user.EmailAddress == null || user.EmailAddress.Length > 50)
+                throw new DataException("EmailAddress is null or too long");
+
+            if (user.Notifications == null || user.Notifications.Length > 250)
+                throw new DataException("Notifications is null or too long");
+
+         
+
+        }
+    }
+}
